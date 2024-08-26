@@ -20,6 +20,7 @@ class MainWindow(QMainWindow):
         self.redis_manager = redis_manager
         self.username = None
         self.current_channel = None
+        self.redis_manager.message_received.connect(self.receive_message)
         self.init_ui()
 
     def init_ui(self):
@@ -75,11 +76,10 @@ class MainWindow(QMainWindow):
             new_channel = dialog.channel_name
             self.channel_list.addItem(new_channel)
 
-    @pyqtSlot(str)
-    def receive_message(self, message):
-        self.chat_history.addItem(message)
-
     def change_channel(self, item):
+        if self.current_channel:
+            self.redis_manager.unsubscribe(self.current_channel)
+
         self.current_channel = item.text()
         self.chat_history.clear()
         # Load recent messages for the channel
@@ -88,7 +88,12 @@ class MainWindow(QMainWindow):
             self.chat_history.addItem(f"{msg[2]}: {msg[3]}")
 
         # Subscribe to the new channel
-        self.redis_manager.subscribe(self.current_channel, self.receive_message)
+        self.redis_manager.subscribe(self.current_channel)
+
+    @pyqtSlot(str, str)
+    def receive_message(self, channel, message):
+        if channel == self.current_channel:
+            self.chat_history.addItem(message)
 
     def send_message(self):
         if not self.current_channel:
